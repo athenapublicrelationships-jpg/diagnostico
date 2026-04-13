@@ -167,7 +167,7 @@ export default function App() {
       await fetch("https://api.emailjs.com/api/v1.0/email/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ service_id: EMAILJS_SERVICE, template_id: EMAILJS_TEMPLATE, user_id: EMAILJS_KEY, template_params: params }),
+        body: JSON.stringify({ service_id: EMAILJS_SERVICE, template_id: EMAILJS_TEMPLATE, user_id: EMAILJS_KEY, template_params: params, accessToken: EMAILJS_KEY }),
       });
       setEmailSent(true);
     } catch (e) {
