@@ -1,4 +1,6 @@
 import { useState } from "react";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 
 const COLORS = {
   bg: "#f8f7f3",
@@ -89,13 +91,6 @@ const EMAILJS_SERVICE = "service_dugnfat";
 const EMAILJS_TEMPLATE = "template_46he7vh";
 const EMAILJS_KEY = "txXPCk3Gj3FdNcsiE";
 
-const loadScript = (src) => new Promise((res, rej) => {
-  if (document.querySelector(`script[src="${src}"]`)) return res();
-  const s = document.createElement("script");
-  s.src = src; s.onload = res; s.onerror = rej;
-  document.head.appendChild(s);
-});
-
 export default function App() {
   const [step, setStep] = useState("intro");
   const [currentModule, setCurrentModule] = useState(0);
@@ -106,6 +101,7 @@ export default function App() {
   const [email, setEmail] = useState("");
   const [formError, setFormError] = useState("");
   const [emailSent, setEmailSent] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState(false);
 
   const mod = modules[currentModule];
   const modColor = moduleColors[currentModule];
@@ -141,114 +137,109 @@ export default function App() {
     return Math.round(scores.reduce((s, m) => s + m.score, 0) / scores.length);
   };
 
-  const sendEmail = async (scores, total) => {
+  const sendEmailJS = async (params) => {
+    const res = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        service_id: EMAILJS_SERVICE,
+        template_id: EMAILJS_TEMPLATE,
+        user_id: EMAILJS_KEY,
+        template_params: params,
+        accessToken: EMAILJS_KEY,
+      }),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      console.error("EmailJS error:", res.status, text);
+    }
+  };
+
+  const sendLeadEmail = () => {
+    sendEmailJS({
+      company_name: companyName,
+      sector: sector || "No especificado",
+      contact_name: contactName,
+      contact_email: email,
+      total_score: "—",
+      global_level: "Diagnóstico iniciado, aún no completado",
+      score_1: "—", score_2: "—", score_3: "—",
+      score_4: "—", score_5: "—", score_6: "—",
+      priority_areas: "El usuario aún no completó el diagnóstico.",
+    }).catch(e => console.error("EmailJS lead error:", e));
+  };
+
+  const sendResultEmail = async (scores, total) => {
     if (emailSent) return;
     const level = getLevel(total);
     const priorities = scores.filter(s => s.score < 70);
     const priorityText = priorities.length === 0
       ? "No se detectaron áreas críticas."
-      : priorities.map(s => `${s.icon} ${s.title}: ${s.score}%`).join("\n");
-    const params = {
+      : priorities.map(s => s.icon + " " + s.title + ": " + s.score + "%").join("\n");
+    await sendEmailJS({
       company_name: companyName,
       sector: sector || "No especificado",
       contact_name: contactName,
       contact_email: email,
       total_score: total,
       global_level: level.label,
-      score_1: scores[0].score,
-      score_2: scores[1].score,
-      score_3: scores[2].score,
-      score_4: scores[3].score,
-      score_5: scores[4].score,
-      score_6: scores[5].score,
+      score_1: scores[0].score, score_2: scores[1].score,
+      score_3: scores[2].score, score_4: scores[3].score,
+      score_5: scores[4].score, score_6: scores[5].score,
       priority_areas: priorityText,
-    };
-    try {
-   const sendEmailJS = async (params) => {
-    await fetch("https://api.emailjs.com/api/v1.0/email/send", {
-      method: "POST",
-      headers: { 
-        "Content-Type": "application/json",
-        "origin": "http://localhost"
-      },
-      body: JSON.stringify({ 
-        service_id: EMAILJS_SERVICE, 
-        template_id: EMAILJS_TEMPLATE, 
-        user_id: EMAILJS_KEY,
-        template_params: params
-      }),
-    });
+    }).catch(e => console.error("EmailJS result error:", e));
+    setEmailSent(true);
   };
-  };
-  const [pdfLoading, setPdfLoading] = useState(false);
 
   const generatePDF = async (scores, total, level) => {
     setPdfLoading(true);
     try {
-      await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
-      await loadScript("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js");
-
       const el = document.getElementById("pdf-content");
-      const canvas = await window.html2canvas(el, { scale: 2, useCORS: true, backgroundColor: "#f8f7f3" });
+      const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: "#f8f7f3" });
       const imgData = canvas.toDataURL("image/png");
-      const { jsPDF } = window.jspdf;
       const doc = new jsPDF({ orientation: "portrait", unit: "px", format: "a4" });
       const pageW = doc.internal.pageSize.getWidth();
       const pageH = doc.internal.pageSize.getHeight();
       const imgW = pageW;
       const imgH = (canvas.height * pageW) / canvas.width;
-      let posY = 0;
       if (imgH <= pageH) {
         doc.addImage(imgData, "PNG", 0, 0, imgW, imgH);
       } else {
-        let remaining = imgH;
+        let posY = 0, remaining = imgH;
         while (remaining > 0) {
           doc.addImage(imgData, "PNG", 0, posY, imgW, imgH);
-          remaining -= pageH;
-          posY -= pageH;
+          remaining -= pageH; posY -= pageH;
           if (remaining > 0) doc.addPage();
         }
       }
       doc.save("Diagnostico_" + companyName.replace(/\s+/g, "_") + ".pdf");
     } catch (e) {
-      alert("Hubo un error al generar el PDF. Por favor intentá de nuevo.");
+      alert("Error al generar el PDF. Intentá de nuevo.");
       console.error(e);
     }
     setPdfLoading(false);
   };
 
   const inputStyle = {
-    border: "1.5px solid " + COLORS.lightGray,
-    borderRadius: 8,
-    padding: "13px 16px",
-    fontSize: 15,
-    fontFamily: fontBody,
-    fontWeight: 400,
-    outline: "none",
-    color: COLORS.black,
-    background: COLORS.white,
-    width: "100%",
+    border: "1.5px solid " + COLORS.lightGray, borderRadius: 8,
+    padding: "13px 16px", fontSize: 15, fontFamily: fontBody,
+    fontWeight: 400, outline: "none", color: COLORS.black,
+    background: COLORS.white, width: "100%",
   };
 
   if (step === "intro") return (
     <div style={{ minHeight: "100vh", background: COLORS.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, fontFamily: fontBody }}>
       <style>{cssStyle}</style>
       <div style={{ background: COLORS.white, borderRadius: 4, padding: 48, maxWidth: 540, width: "100%", boxShadow: "0 4px 40px rgba(0,0,0,0.08)", border: "1px solid " + COLORS.lightGray }}>
-        <div style={{ marginBottom: 8 }}>
-          <span style={{ fontFamily: fontBody, fontWeight: 800, fontSize: 11, letterSpacing: 3, color: COLORS.accent, textTransform: "uppercase" }}>Herramienta de diagnóstico</span>
-        </div>
-        <h1 style={{ fontFamily: fontTitle, fontSize: 36, fontWeight: 900, color: COLORS.black, lineHeight: 1.2, marginBottom: 8 }}>
-          Comunicación<br />& Relaciones Públicas
-        </h1>
+        <span style={{ fontFamily: fontBody, fontWeight: 800, fontSize: 11, letterSpacing: 3, color: COLORS.accent, textTransform: "uppercase" }}>Herramienta de diagnóstico</span>
+        <h1 style={{ fontFamily: fontTitle, fontSize: 36, fontWeight: 900, color: COLORS.black, lineHeight: 1.2, margin: "8px 0" }}>Comunicación<br />& Relaciones Públicas</h1>
         <div style={{ width: 48, height: 3, background: COLORS.accent, marginBottom: 24 }} />
         <p style={{ color: COLORS.gray, lineHeight: 1.8, marginBottom: 32, fontSize: 15, fontWeight: 300 }}>
           Conocé el estado actual de la comunicación en tu organización en <strong style={{ fontWeight: 700, color: COLORS.black }}>6 dimensiones clave</strong> y obtené un diagnóstico personalizado.
         </p>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 36 }}>
           {modules.map(m => (
-            <span key={m.id} style={{ background: COLORS.bg, borderRadius: 2, padding: "5px 12px", fontSize: 12, fontFamily: fontBody, fontWeight: 600, letterSpacing: 0.5, color: COLORS.black, border: "1px solid " + COLORS.lightGray }}>
-              {m.icon} {m.title}
-            </span>
+            <span key={m.id} style={{ background: COLORS.bg, borderRadius: 2, padding: "5px 12px", fontSize: 12, fontFamily: fontBody, fontWeight: 600, color: COLORS.black, border: "1px solid " + COLORS.lightGray }}>{m.icon} {m.title}</span>
           ))}
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 8 }}>
@@ -264,27 +255,7 @@ export default function App() {
           if (!companyName || !contactName || !email) { setFormError("Por favor completá todos los campos obligatorios."); return; }
           if (!emailValid) { setFormError("Ingresá un email válido."); return; }
           setFormError("");
-          // Captura de lead al inicio
-          fetch("https://api.emailjs.com/api/v1.0/email/send", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              service_id: EMAILJS_SERVICE,
-              template_id: EMAILJS_TEMPLATE,
-              user_id: EMAILJS_KEY,
-              template_params: {
-                company_name: companyName,
-                sector: sector || "No especificado",
-                contact_name: contactName,
-                contact_email: email,
-                total_score: "—",
-                global_level: "Diagnóstico iniciado, aún no completado",
-                score_1: "—", score_2: "—", score_3: "—",
-                score_4: "—", score_5: "—", score_6: "—",
-                priority_areas: "El usuario aún no completó el diagnóstico.",
-              }
-            })
-          }).catch(e => console.error("EmailJS lead error:", e));
+          sendLeadEmail();
           setStep("survey");
         }} style={{ width: "100%", background: COLORS.accent, color: COLORS.white, border: "none", borderRadius: 4, padding: "16px", fontSize: 14, fontWeight: 800, fontFamily: fontBody, letterSpacing: 1, textTransform: "uppercase", cursor: "pointer" }}>
           Comenzar diagnóstico →
@@ -298,13 +269,13 @@ export default function App() {
     const scores = calcScores();
     const total = totalScore();
     const level = getLevel(total);
-    if (!emailSent) sendEmail(scores, total);
+    if (!emailSent) sendResultEmail(scores, total);
     return (
       <div style={{ minHeight: "100vh", background: COLORS.bg, fontFamily: fontBody, padding: 24 }}>
         <style>{cssStyle}</style>
         <div id="pdf-content" style={{ maxWidth: 700, margin: "0 auto" }}>
           <div style={{ background: COLORS.black, borderRadius: 4, padding: "40px 36px", color: COLORS.white, marginBottom: 20 }}>
-            <span style={{ fontFamily: fontBody, fontWeight: 800, fontSize: 10, letterSpacing: 3, color: COLORS.accent, textTransform: "uppercase" }}>Resultado del diagnóstico</span>
+            <span style={{ fontWeight: 800, fontSize: 10, letterSpacing: 3, color: COLORS.accent, textTransform: "uppercase" }}>Resultado del diagnóstico</span>
             {companyName && <p style={{ opacity: 0.5, margin: "8px 0 0", fontSize: 13, fontWeight: 300 }}>{companyName}{sector ? " · " + sector : ""}</p>}
             {contactName && <p style={{ opacity: 0.5, margin: "4px 0 0", fontSize: 13, fontWeight: 300 }}>Contacto: {contactName} · {email}</p>}
             <h1 style={{ fontFamily: fontTitle, fontSize: 32, fontWeight: 900, margin: "12px 0 20px", lineHeight: 1.2 }}>Tu Diagnóstico de<br />Comunicación & RRPP</h1>
@@ -338,7 +309,7 @@ export default function App() {
           </div>
 
           <div style={{ background: COLORS.white, borderRadius: 4, padding: 28, border: "1px solid " + COLORS.lightGray, marginBottom: 20 }}>
-            <span style={{ fontFamily: fontBody, fontWeight: 800, fontSize: 10, letterSpacing: 3, color: COLORS.accent, textTransform: "uppercase" }}>Áreas prioritarias</span>
+            <span style={{ fontWeight: 800, fontSize: 10, letterSpacing: 3, color: COLORS.accent, textTransform: "uppercase" }}>Áreas prioritarias</span>
             <h3 style={{ fontFamily: fontTitle, fontSize: 22, margin: "8px 0 20px", color: COLORS.black }}>Dónde enfocar la energía</h3>
             {scores.filter(s => s.score < 70).length === 0
               ? <p style={{ color: "#059669", fontWeight: 700, fontSize: 15 }}>No se detectaron áreas críticas. ¡Excelente trabajo!</p>
@@ -347,7 +318,7 @@ export default function App() {
                   <span style={{ fontSize: 22 }}>{s.icon}</span>
                   <div>
                     <div style={{ fontWeight: 700, color: COLORS.black, fontSize: 14 }}>{s.title}</div>
-                    <div style={{ color: COLORS.accent, fontSize: 12, fontWeight: 600, letterSpacing: 0.5 }}>Requiere atención prioritaria · {s.score}%</div>
+                    <div style={{ color: COLORS.accent, fontSize: 12, fontWeight: 600 }}>Requiere atención prioritaria · {s.score}%</div>
                   </div>
                 </div>
               ))
@@ -379,13 +350,13 @@ export default function App() {
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: 2, textTransform: "uppercase", color: modColor }}>{mod.icon} {mod.title}</span>
-            <span style={{ fontSize: 11, color: COLORS.gray, fontWeight: 400 }}>Módulo {currentModule + 1} de {modules.length}</span>
+            <span style={{ fontSize: 11, color: COLORS.gray }}>Módulo {currentModule + 1} de {modules.length}</span>
           </div>
         </div>
 
         <div style={{ background: COLORS.white, borderRadius: 4, overflow: "hidden", border: "1px solid " + COLORS.lightGray }}>
           <div style={{ background: modColor, padding: "28px 32px" }}>
-            <span style={{ fontFamily: fontBody, fontWeight: 800, fontSize: 10, letterSpacing: 3, color: modColor === COLORS.accent ? "rgba(255,255,255,0.7)" : COLORS.accent, textTransform: "uppercase" }}>Módulo {currentModule + 1}</span>
+            <span style={{ fontWeight: 800, fontSize: 10, letterSpacing: 3, color: modColor === COLORS.accent ? "rgba(255,255,255,0.7)" : COLORS.accent, textTransform: "uppercase" }}>Módulo {currentModule + 1}</span>
             <h2 style={{ fontFamily: fontTitle, color: COLORS.white, margin: "6px 0 0", fontSize: 26, fontWeight: 900 }}>{mod.title}</h2>
           </div>
 
@@ -395,7 +366,6 @@ export default function App() {
                 <p style={{ fontWeight: 600, color: COLORS.black, marginBottom: 14, lineHeight: 1.6, fontSize: 15 }}>
                   <span style={{ color: modColor, fontWeight: 800 }}>{qi + 1}. </span>{q.text}
                 </p>
-
                 {q.type === "scale" && (
                   <>
                     <div style={{ display: "flex", gap: 8 }}>
@@ -411,23 +381,21 @@ export default function App() {
                     </div>
                   </>
                 )}
-
                 {q.type === "choice" && (
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     {q.options.map(opt => (
-                      <button key={opt} onClick={() => setChoice(q.id, opt)} style={{ textAlign: "left", padding: "13px 16px", borderRadius: 4, border: "2px solid " + (answers[q.id] === opt ? modColor : COLORS.lightGray), background: answers[q.id] === opt ? (modColor === COLORS.accent ? "#fff0f2" : "#f0f0f0") : COLORS.white, color: answers[q.id] === opt ? modColor : COLORS.gray, fontWeight: answers[q.id] === opt ? 700 : 400, cursor: "pointer", transition: "all 0.15s", fontSize: 14, fontFamily: fontBody }}>
+                      <button key={opt} onClick={() => setChoice(q.id, opt)} style={{ textAlign: "left", padding: "13px 16px", borderRadius: 4, border: "2px solid " + (answers[q.id] === opt ? modColor : COLORS.lightGray), background: answers[q.id] === opt ? (modColor === COLORS.accent ? "#fff0f2" : "#f0f0f0") : COLORS.white, color: answers[q.id] === opt ? modColor : COLORS.gray, fontWeight: answers[q.id] === opt ? 700 : 400, cursor: "pointer", fontSize: 14, fontFamily: fontBody }}>
                         <span style={{ marginRight: 8, fontSize: 12 }}>{answers[q.id] === opt ? "●" : "○"}</span>{opt}
                       </button>
                     ))}
                   </div>
                 )}
-
                 {q.type === "multi" && (
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                     {q.options.map(opt => {
                       const sel = (answers[q.id] || []).includes(opt);
                       return (
-                        <button key={opt} onClick={() => toggleMulti(q.id, opt)} style={{ padding: "9px 16px", borderRadius: 4, border: "2px solid " + (sel ? modColor : COLORS.lightGray), background: sel ? modColor : COLORS.white, color: sel ? COLORS.white : COLORS.gray, fontWeight: sel ? 700 : 400, cursor: "pointer", fontSize: 13, fontFamily: fontBody, transition: "all 0.15s" }}>
+                        <button key={opt} onClick={() => toggleMulti(q.id, opt)} style={{ padding: "9px 16px", borderRadius: 4, border: "2px solid " + (sel ? modColor : COLORS.lightGray), background: sel ? modColor : COLORS.white, color: sel ? COLORS.white : COLORS.gray, fontWeight: sel ? 700 : 400, cursor: "pointer", fontSize: 13, fontFamily: fontBody }}>
                           {sel ? "✓ " : ""}{opt}
                         </button>
                       );
@@ -437,7 +405,6 @@ export default function App() {
                 )}
               </div>
             ))}
-
             <div style={{ display: "flex", gap: 10 }}>
               {currentModule > 0 && (
                 <button onClick={() => setCurrentModule(m => m - 1)} style={{ flex: 1, background: COLORS.white, color: COLORS.black, border: "1.5px solid " + COLORS.lightGray, borderRadius: 4, padding: 14, fontSize: 13, fontWeight: 800, fontFamily: fontBody, letterSpacing: 1, textTransform: "uppercase", cursor: "pointer" }}>
@@ -447,7 +414,7 @@ export default function App() {
               <button
                 onClick={() => currentModule < modules.length - 1 ? setCurrentModule(m => m + 1) : setStep("results")}
                 disabled={!allAnswered}
-                style={{ flex: 2, background: allAnswered ? modColor : COLORS.lightGray, color: allAnswered ? COLORS.white : COLORS.gray, border: "none", borderRadius: 4, padding: 14, fontSize: 13, fontWeight: 800, fontFamily: fontBody, letterSpacing: 1, textTransform: "uppercase", cursor: allAnswered ? "pointer" : "not-allowed", transition: "all 0.2s" }}>
+                style={{ flex: 2, background: allAnswered ? modColor : COLORS.lightGray, color: allAnswered ? COLORS.white : COLORS.gray, border: "none", borderRadius: 4, padding: 14, fontSize: 13, fontWeight: 800, fontFamily: fontBody, letterSpacing: 1, textTransform: "uppercase", cursor: allAnswered ? "pointer" : "not-allowed" }}>
                 {currentModule < modules.length - 1 ? "Siguiente módulo →" : "Ver diagnóstico →"}
               </button>
             </div>
