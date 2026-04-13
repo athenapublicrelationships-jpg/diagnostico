@@ -164,17 +164,22 @@ export default function App() {
       priority_areas: priorityText,
     };
     try {
-      await fetch("https://api.emailjs.com/api/v1.0/email/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ service_id: EMAILJS_SERVICE, template_id: EMAILJS_TEMPLATE, user_id: EMAILJS_KEY, template_params: params, accessToken: EMAILJS_KEY }),
-      });
-      setEmailSent(true);
-    } catch (e) {
-      console.error("EmailJS error:", e);
-    }
+   const sendEmailJS = async (params) => {
+    await fetch("https://api.emailjs.com/api/v1.0/email/send", {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json",
+        "origin": "http://localhost"
+      },
+      body: JSON.stringify({ 
+        service_id: EMAILJS_SERVICE, 
+        template_id: EMAILJS_TEMPLATE, 
+        user_id: EMAILJS_KEY,
+        template_params: params
+      }),
+    });
   };
-
+  };
   const [pdfLoading, setPdfLoading] = useState(false);
 
   const generatePDF = async (scores, total, level) => {
