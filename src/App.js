@@ -10,6 +10,7 @@ const COLORS = {
   gray: "#6b6b6b",
   lightGray: "#e8e7e2",
 };
+
 const fontTitle = "'Playfair Display', serif";
 const fontBody = "'League Spartan', sans-serif";
 
@@ -19,7 +20,7 @@ const cssStyle = `
   body { background: #f8f7f3; }
 `;
 
-const SHEETS_URL = "https://script.google.com/macros/s/AKfycby4HNGBGo1VKdLsp2CUk8mUL4Y4AS3vUswRN_Us9ukcsXRXLloANFlqNkHSDdqCbzrTVg/exec";
+const SHEETS_URL = "https://script.google.com/macros/s/AKfycbwrHwg2WkLE88MmKg1hympZXMlKMy_gtU8CxpH2J0cZ7O23qi_jIV1H4U5dIDbMLA_dbQ/exec";
 
 const moduleColors = ["#fa5170","#111111","#fa5170","#111111","#fa5170","#111111"];
 
