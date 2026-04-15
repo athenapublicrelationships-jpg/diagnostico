@@ -10,7 +10,6 @@ const COLORS = {
   gray: "#6b6b6b",
   lightGray: "#e8e7e2",
 };
-
 const fontTitle = "'Playfair Display', serif";
 const fontBody = "'League Spartan', sans-serif";
 
