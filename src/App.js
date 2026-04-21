@@ -18,11 +18,38 @@ const cssStyle = `
   @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=League+Spartan:wght@300;400;600;700;800&display=swap');
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { background: #f8f7f3; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+  .btn-scale { flex: 1; padding: 14px 0; border-radius: 4px; font-weight: 800; font-size: 18px; cursor: pointer; transition: all 0.15s; border: 2px solid; font-family: 'League Spartan', sans-serif; }
+  @media (max-width: 600px) {
+    .grid-2 { grid-template-columns: 1fr !important; }
+    .intro-card { padding: 28px 20px !important; }
+    .intro-title { font-size: 28px !important; }
+    .module-header { padding: 20px 20px !important; }
+    .module-header h2 { font-size: 20px !important; }
+    .module-body { padding: 20px 16px 20px !important; }
+    .scale-row { gap: 6px !important; }
+    .btn-scale { padding: 12px 0 !important; font-size: 16px !important; }
+    .results-header { padding: 28px 20px !important; }
+    .results-header h1 { font-size: 24px !important; }
+    .results-score { font-size: 56px !important; }
+    .results-body { padding: 20px !important; }
+    .nav-btns { flex-direction: column !important; }
+    .tags-wrap { gap: 6px !important; }
+    .tag { font-size: 11px !important; padding: 4px 10px !important; }
+  }
 `;
 
 const SHEETS_URL = "https://script.google.com/macros/s/AKfycbwrHwg2WkLE88MmKg1hympZXMlKMy_gtU8CxpH2J0cZ7O23qi_jIV1H4U5dIDbMLA_dbQ/exec";
-
 const moduleColors = ["#fa5170","#111111","#fa5170","#111111","#fa5170","#111111"];
+
+const CONSULTORA = {
+  nombre: "ATHENA PR",
+  descripcion: "Consultora de Relaciones Públicas & Comunicación",
+  telefono: "+54 9 280 441-5599",
+  email: "hola@athenapr.com.ar",
+  web: "www.athenapr.com.ar",
+  direccion: "Marcos A. Zar 523, Puerto Madryn, Argentina",
+};
 
 const modules = [
   {
@@ -87,7 +114,7 @@ const modules = [
   }
 ];
 
-const scaleLabels = ["Muy bajo", "Bajo", "Regular", "Bueno", "Excelente"];
+const scaleLabels = ["Muy bajo", "Excelente"];
 
 export default function App() {
   const [step, setStep] = useState("intro");
@@ -120,7 +147,7 @@ export default function App() {
     const scaleQs = m.questions.filter(q => q.type === "scale");
     const total = scaleQs.reduce((sum, q) => sum + (answers[q.id] || 0), 0);
     const max = scaleQs.length * 5;
-    return { title: m.title, icon: m.icon, color: moduleColors[i], score: max > 0 ? Math.round((total / max) * 100) : 0 };
+    return { title: m.title, icon: m.icon, score: max > 0 ? Math.round((total / max) * 100) : 0 };
   });
 
   const getLevel = score => {
@@ -130,55 +157,36 @@ export default function App() {
     return { label: "Crítico", color: "#fa5170" };
   };
 
-  const totalScore = () => {
-    const scores = calcScores();
-    return Math.round(scores.reduce((s, m) => s + m.score, 0) / scores.length);
-  };
+  const totalScore = () => Math.round(calcScores().reduce((s, m) => s + m.score, 0) / modules.length);
 
   const saveToSheets = (data) => {
     fetch(SHEETS_URL, {
-      method: "POST",
-      mode: "no-cors",
+      method: "POST", mode: "no-cors",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     }).catch(e => console.error("Sheets error:", e));
   };
 
-  const saveLeadToSheets = () => {
-    saveToSheets({
-      company_name: companyName,
-      sector: sector || "No especificado",
-      contact_name: contactName,
-      contact_email: email,
-      total_score: "—",
-      global_level: "Diagnóstico iniciado",
-      score_1: "—", score_2: "—", score_3: "—",
-      score_4: "—", score_5: "—", score_6: "—",
-      priority_areas: "Aún no completado",
-    });
-  };
+  const saveLeadToSheets = () => saveToSheets({
+    company_name: companyName, sector: sector || "No especificado",
+    contact_name: contactName, contact_email: email,
+    total_score: "—", global_level: "Diagnóstico iniciado",
+    score_1: "—", score_2: "—", score_3: "—", score_4: "—", score_5: "—", score_6: "—",
+    priority_areas: "Aún no completado",
+  });
 
   const saveResultToSheets = (scores, total) => {
     if (dataSent) return;
     const level = getLevel(total);
     const priorities = scores.filter(s => s.score < 70);
-    const priorityText = priorities.length === 0
-      ? "No se detectaron áreas críticas."
-      : priorities.map(s => s.title + ": " + s.score + "%").join(" | ");
     saveToSheets({
-      company_name: companyName,
-      sector: sector || "No especificado",
-      contact_name: contactName,
-      contact_email: email,
-      total_score: total + "%",
-      global_level: level.label,
-      score_1: scores[0].score + "%",
-      score_2: scores[1].score + "%",
-      score_3: scores[2].score + "%",
-      score_4: scores[3].score + "%",
-      score_5: scores[4].score + "%",
-      score_6: scores[5].score + "%",
-      priority_areas: priorityText,
+      company_name: companyName, sector: sector || "No especificado",
+      contact_name: contactName, contact_email: email,
+      total_score: total + "%", global_level: level.label,
+      score_1: scores[0].score + "%", score_2: scores[1].score + "%",
+      score_3: scores[2].score + "%", score_4: scores[3].score + "%",
+      score_5: scores[4].score + "%", score_6: scores[5].score + "%",
+      priority_areas: priorities.length === 0 ? "Sin áreas críticas" : priorities.map(s => s.title + ": " + s.score + "%").join(" | "),
     });
     setDataSent(true);
   };
@@ -186,25 +194,120 @@ export default function App() {
   const generatePDF = async (scores, total, level) => {
     setPdfLoading(true);
     try {
-      const el = document.getElementById("pdf-content");
-      const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: "#f8f7f3" });
-      const imgData = canvas.toDataURL("image/png");
-      const doc = new jsPDF({ orientation: "portrait", unit: "px", format: "a4" });
-      const pageW = doc.internal.pageSize.getWidth();
-      const pageH = doc.internal.pageSize.getHeight();
-      const imgW = pageW;
-      const imgH = (canvas.height * pageW) / canvas.width;
-      if (imgH <= pageH) {
-        doc.addImage(imgData, "PNG", 0, 0, imgW, imgH);
-      } else {
-        let posY = 0, remaining = imgH;
-        while (remaining > 0) {
-          doc.addImage(imgData, "PNG", 0, posY, imgW, imgH);
-          remaining -= pageH; posY -= pageH;
-          if (remaining > 0) doc.addPage();
-        }
+      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const W = 210, pad = 18;
+
+      // Header negro
+      doc.setFillColor(17, 17, 17);
+      doc.rect(0, 0, W, 48, "F");
+
+      // Logo ATHENA PR
+      doc.setTextColor(250, 81, 112);
+      doc.setFontSize(24); doc.setFont("helvetica", "bold");
+      doc.text("ATHENA PR", pad, 22);
+      doc.setFontSize(9); doc.setFont("helvetica", "normal");
+      doc.setTextColor(255, 255, 255);
+      doc.text(CONSULTORA.descripcion, pad, 30);
+
+      // Fecha
+      doc.setFontSize(8); doc.setTextColor(150, 150, 150);
+      doc.text(new Date().toLocaleDateString("es-AR", { year: "numeric", month: "long", day: "numeric" }), W - pad, 22, { align: "right" });
+
+      // Titulo informe
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(11); doc.setFont("helvetica", "bold");
+      doc.text("DIAGNÓSTICO DE COMUNICACIÓN & RELACIONES PÚBLICAS", pad, 42);
+
+      // Datos empresa
+      let y = 58;
+      doc.setFillColor(248, 247, 243);
+      doc.roundedRect(pad, y, W - pad * 2, 26, 2, 2, "F");
+      doc.setTextColor(17, 17, 17);
+      doc.setFontSize(8); doc.setFont("helvetica", "bold");
+      doc.text("EMPRESA EVALUADA", pad + 5, y + 7);
+      doc.setFont("helvetica", "normal"); doc.setFontSize(11);
+      doc.text(companyName, pad + 5, y + 15);
+      doc.setFontSize(8); doc.setTextColor(107, 107, 107);
+      doc.text((sector ? sector + "   |   " : "") + "Contacto: " + contactName + "   |   " + email, pad + 5, y + 22);
+
+      // Puntaje global
+      y += 34;
+      doc.setFillColor(17, 17, 17);
+      doc.roundedRect(pad, y, 75, 32, 2, 2, "F");
+      doc.setTextColor(250, 81, 112);
+      doc.setFontSize(32); doc.setFont("helvetica", "bold");
+      doc.text(total + "%", pad + 6, y + 22);
+      doc.setFontSize(7); doc.setTextColor(200, 200, 200);
+      doc.setFont("helvetica", "normal");
+      doc.text("PUNTAJE GLOBAL", pad + 6, y + 29);
+      doc.setFillColor(250, 81, 112);
+      doc.roundedRect(pad + 80, y + 8, 55, 12, 2, 2, "F");
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(9); doc.setFont("helvetica", "bold");
+      doc.text(level.label.toUpperCase(), pad + 107, y + 16, { align: "center" });
+
+      // Módulos
+      y += 42;
+      doc.setTextColor(17, 17, 17);
+      doc.setFontSize(7); doc.setFont("helvetica", "bold");
+      doc.text("PUNTAJE POR MÓDULO", pad, y);
+      y += 5;
+      scores.forEach((s, i) => {
+        const bw = W - pad * 2 - 35;
+        doc.setFillColor(232, 231, 226);
+        doc.roundedRect(pad, y + 3, bw, 4, 1, 1, "F");
+        if (i % 2 === 0) doc.setFillColor(250, 81, 112);
+        else doc.setFillColor(17, 17, 17);
+        doc.roundedRect(pad, y + 3, bw * s.score / 100, 4, 1, 1, "F");
+        doc.setTextColor(17, 17, 17);
+        doc.setFontSize(8); doc.setFont("helvetica", "normal");
+        doc.text(s.icon + " " + s.title, pad, y);
+        doc.setFont("helvetica", "bold");
+        doc.text(s.score + "%", W - pad, y + 6, { align: "right" });
+        y += 13;
+      });
+
+      // Áreas prioritarias
+      const priorities = scores.filter(s => s.score < 70);
+      if (priorities.length > 0) {
+        y += 4;
+        doc.setFillColor(255, 240, 242);
+        doc.roundedRect(pad, y, W - pad * 2, 10 + priorities.length * 9, 2, 2, "F");
+        doc.setTextColor(250, 81, 112);
+        doc.setFontSize(7); doc.setFont("helvetica", "bold");
+        doc.text("ÁREAS PRIORITARIAS DE MEJORA", pad + 5, y + 7);
+        priorities.forEach((s, i) => {
+          doc.setTextColor(17, 17, 17);
+          doc.setFont("helvetica", "normal"); doc.setFontSize(8);
+          doc.text("→  " + s.title + " — " + s.score + "%", pad + 5, y + 14 + i * 9);
+        });
+        y += 10 + priorities.length * 9;
       }
-      doc.save("Diagnostico_" + companyName.replace(/\s+/g, "_") + ".pdf");
+
+      // CTA
+      y += 8;
+      doc.setFillColor(17, 17, 17);
+      doc.roundedRect(pad, y, W - pad * 2, 38, 2, 2, "F");
+      doc.setTextColor(250, 81, 112);
+      doc.setFontSize(10); doc.setFont("helvetica", "bold");
+      doc.text("¿Necesitás acompañamiento estratégico?", pad + 5, y + 10);
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(8); doc.setFont("helvetica", "normal");
+      doc.text("En Athena PR te ayudamos a desarrollar una estrategia de comunicación y", pad + 5, y + 18);
+      doc.text("relaciones públicas corporativa a medida de tu organización.", pad + 5, y + 24);
+      doc.setTextColor(250, 81, 112);
+      doc.setFontSize(8); doc.setFont("helvetica", "bold");
+      doc.text(CONSULTORA.email + "   |   " + CONSULTORA.telefono + "   |   " + CONSULTORA.web, pad + 5, y + 33);
+
+      // Footer
+      doc.setFillColor(250, 81, 112);
+      doc.rect(0, 282, W, 15, "F");
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(7); doc.setFont("helvetica", "normal");
+      doc.text("ATHENA PR  —  " + CONSULTORA.descripcion, pad, 291);
+      doc.text(CONSULTORA.direccion, W - pad, 291, { align: "right" });
+
+      doc.save("Diagnostico_AthenaPR_" + companyName.replace(/\s+/g, "_") + ".pdf");
     } catch (e) {
       alert("Error al generar el PDF. Intentá de nuevo.");
       console.error(e);
@@ -212,47 +315,51 @@ export default function App() {
     setPdfLoading(false);
   };
 
-  const inputStyle = {
-    border: "1.5px solid " + COLORS.lightGray, borderRadius: 8,
-    padding: "13px 16px", fontSize: 15, fontFamily: fontBody,
-    fontWeight: 400, outline: "none", color: COLORS.black,
-    background: COLORS.white, width: "100%",
-  };
+  const inp = (val, set, placeholder, type, hasError) => (
+    <input value={val} onChange={e => set(e.target.value)} placeholder={placeholder} type={type || "text"}
+      style={{ border: "1.5px solid " + (hasError ? COLORS.accent : COLORS.lightGray), borderRadius: 8, padding: "14px 16px", fontSize: 16, fontFamily: fontBody, fontWeight: 400, outline: "none", color: COLORS.black, background: COLORS.white, width: "100%" }} />
+  );
 
   if (step === "intro") return (
-    <div style={{ minHeight: "100vh", background: COLORS.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, fontFamily: fontBody }}>
+    <div style={{ minHeight: "100vh", background: COLORS.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, fontFamily: fontBody }}>
       <style>{cssStyle}</style>
-      <div style={{ background: COLORS.white, borderRadius: 4, padding: 48, maxWidth: 540, width: "100%", boxShadow: "0 4px 40px rgba(0,0,0,0.08)", border: "1px solid " + COLORS.lightGray }}>
-        <span style={{ fontFamily: fontBody, fontWeight: 800, fontSize: 11, letterSpacing: 3, color: COLORS.accent, textTransform: "uppercase" }}>Herramienta de diagnóstico</span>
-        <h1 style={{ fontFamily: fontTitle, fontSize: 36, fontWeight: 900, color: COLORS.black, lineHeight: 1.2, margin: "8px 0" }}>Comunicación<br />& Relaciones Públicas</h1>
-        <div style={{ width: 48, height: 3, background: COLORS.accent, marginBottom: 24 }} />
-        <p style={{ color: COLORS.gray, lineHeight: 1.8, marginBottom: 32, fontSize: 15, fontWeight: 300 }}>
+      <div className="intro-card" style={{ background: COLORS.white, borderRadius: 4, padding: 40, maxWidth: 540, width: "100%", boxShadow: "0 4px 40px rgba(0,0,0,0.08)", border: "1px solid " + COLORS.lightGray }}>
+        {/* Logo */}
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ background: COLORS.black, borderRadius: 4, padding: "10px 16px", display: "inline-block" }}>
+            <span style={{ fontFamily: fontBody, fontWeight: 800, fontSize: 20, color: COLORS.accent, letterSpacing: 2 }}>ATHENA PR</span>
+          </div>
+        </div>
+        <span style={{ fontWeight: 800, fontSize: 11, letterSpacing: 3, color: COLORS.accent, textTransform: "uppercase" }}>Herramienta de diagnóstico</span>
+        <h1 className="intro-title" style={{ fontFamily: fontTitle, fontSize: 34, fontWeight: 900, color: COLORS.black, lineHeight: 1.2, margin: "8px 0" }}>
+          Comunicación<br />& Relaciones Públicas
+        </h1>
+        <div style={{ width: 48, height: 3, background: COLORS.accent, marginBottom: 20 }} />
+        <p style={{ color: COLORS.gray, lineHeight: 1.8, marginBottom: 24, fontSize: 15, fontWeight: 300 }}>
           Conocé el estado actual de la comunicación en tu organización en <strong style={{ fontWeight: 700, color: COLORS.black }}>6 dimensiones clave</strong> y obtené un diagnóstico personalizado.
         </p>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 36 }}>
+        <div className="tags-wrap" style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 28 }}>
           {modules.map(m => (
-            <span key={m.id} style={{ background: COLORS.bg, borderRadius: 2, padding: "5px 12px", fontSize: 12, fontFamily: fontBody, fontWeight: 600, color: COLORS.black, border: "1px solid " + COLORS.lightGray }}>{m.icon} {m.title}</span>
+            <span key={m.id} className="tag" style={{ background: COLORS.bg, borderRadius: 2, padding: "5px 12px", fontSize: 12, fontWeight: 600, color: COLORS.black, border: "1px solid " + COLORS.lightGray }}>{m.icon} {m.title}</span>
           ))}
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 8 }}>
-          <input value={companyName} onChange={e => setCompanyName(e.target.value)} placeholder="Nombre de la empresa *" style={{ ...inputStyle, borderColor: formError && !companyName ? COLORS.accent : COLORS.lightGray }} />
-          <input value={sector} onChange={e => setSector(e.target.value)} placeholder="Sector o industria" style={inputStyle} />
-          <input value={contactName} onChange={e => setContactName(e.target.value)} placeholder="Nombre de contacto *" style={{ ...inputStyle, borderColor: formError && !contactName ? COLORS.accent : COLORS.lightGray }} />
-          <input value={email} onChange={e => setEmail(e.target.value)} placeholder="Email de contacto *" type="email" style={{ ...inputStyle, borderColor: formError && !email ? COLORS.accent : COLORS.lightGray }} />
+          {inp(companyName, setCompanyName, "Nombre de la empresa *", "text", formError && !companyName)}
+          {inp(sector, setSector, "Sector o industria", "text", false)}
+          {inp(contactName, setContactName, "Nombre de contacto *", "text", formError && !contactName)}
+          {inp(email, setEmail, "Email de contacto *", "email", formError && !email)}
         </div>
-        {formError && <p style={{ color: COLORS.accent, fontSize: 12, fontWeight: 600, marginBottom: 12 }}>{formError}</p>}
+        {formError && <p style={{ color: COLORS.accent, fontSize: 13, fontWeight: 600, marginBottom: 10 }}>{formError}</p>}
         <p style={{ fontSize: 11, color: COLORS.gray, marginBottom: 20, fontWeight: 300 }}>* Campos obligatorios</p>
         <button onClick={() => {
           const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
           if (!companyName || !contactName || !email) { setFormError("Por favor completá todos los campos obligatorios."); return; }
           if (!emailValid) { setFormError("Ingresá un email válido."); return; }
-          setFormError("");
-          saveLeadToSheets();
-          setStep("survey");
-        }} style={{ width: "100%", background: COLORS.accent, color: COLORS.white, border: "none", borderRadius: 4, padding: "16px", fontSize: 14, fontWeight: 800, fontFamily: fontBody, letterSpacing: 1, textTransform: "uppercase", cursor: "pointer" }}>
+          setFormError(""); saveLeadToSheets(); setStep("survey");
+        }} style={{ width: "100%", background: COLORS.accent, color: COLORS.white, border: "none", borderRadius: 4, padding: "16px", fontSize: 15, fontWeight: 800, fontFamily: fontBody, letterSpacing: 1, textTransform: "uppercase", cursor: "pointer" }}>
           Comenzar diagnóstico →
         </button>
-        <p style={{ textAlign: "center", color: COLORS.gray, fontSize: 12, marginTop: 16, fontWeight: 300 }}>Duración estimada: 8–10 minutos</p>
+        <p style={{ textAlign: "center", color: COLORS.gray, fontSize: 12, marginTop: 14, fontWeight: 300 }}>⏱ Duración estimada: 8–10 minutos</p>
       </div>
     </div>
   );
@@ -263,51 +370,55 @@ export default function App() {
     const level = getLevel(total);
     if (!dataSent) saveResultToSheets(scores, total);
     return (
-      <div style={{ minHeight: "100vh", background: COLORS.bg, fontFamily: fontBody, padding: 24 }}>
+      <div style={{ minHeight: "100vh", background: COLORS.bg, fontFamily: fontBody, padding: 16 }}>
         <style>{cssStyle}</style>
-        <div id="pdf-content" style={{ maxWidth: 700, margin: "0 auto" }}>
-          <div style={{ background: COLORS.black, borderRadius: 4, padding: "40px 36px", color: COLORS.white, marginBottom: 20 }}>
-            <span style={{ fontWeight: 800, fontSize: 10, letterSpacing: 3, color: COLORS.accent, textTransform: "uppercase" }}>Resultado del diagnóstico</span>
-            {companyName && <p style={{ opacity: 0.5, margin: "8px 0 0", fontSize: 13, fontWeight: 300 }}>{companyName}{sector ? " · " + sector : ""}</p>}
-            {contactName && <p style={{ opacity: 0.5, margin: "4px 0 0", fontSize: 13, fontWeight: 300 }}>Contacto: {contactName} · {email}</p>}
-            <h1 style={{ fontFamily: fontTitle, fontSize: 32, fontWeight: 900, margin: "12px 0 20px", lineHeight: 1.2 }}>Tu Diagnóstico de<br />Comunicación & RRPP</h1>
-            <div style={{ display: "flex", alignItems: "flex-end", gap: 20 }}>
-              <div>
-                <div style={{ fontSize: 72, fontWeight: 900, lineHeight: 1, color: COLORS.accent }}>{total}%</div>
-                <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 2, textTransform: "uppercase", color: COLORS.white, opacity: 0.6, marginTop: 4 }}>Puntuación global</div>
+        <div style={{ maxWidth: 700, margin: "0 auto" }}>
+          <div className="results-header" style={{ background: COLORS.black, borderRadius: 4, padding: "36px 32px", color: COLORS.white, marginBottom: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+              <div style={{ background: COLORS.accent, borderRadius: 3, padding: "5px 12px" }}>
+                <span style={{ fontWeight: 800, fontSize: 13, letterSpacing: 2 }}>ATHENA PR</span>
               </div>
-              <div style={{ background: COLORS.accent, borderRadius: 4, padding: "8px 20px", marginBottom: 8 }}>
-                <span style={{ fontWeight: 800, fontSize: 14, letterSpacing: 1, textTransform: "uppercase" }}>{level.label}</span>
+              <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: 3, color: COLORS.accent, textTransform: "uppercase", opacity: 0.8 }}>Resultado del diagnóstico</span>
+            </div>
+            {companyName && <p style={{ opacity: 0.5, margin: "0 0 4px", fontSize: 13, fontWeight: 300 }}>{companyName}{sector ? " · " + sector : ""}</p>}
+            <h1 style={{ fontFamily: fontTitle, fontSize: 28, fontWeight: 900, margin: "8px 0 20px", lineHeight: 1.2 }}>Tu Diagnóstico de<br />Comunicación & RRPP</h1>
+            <div style={{ display: "flex", alignItems: "flex-end", gap: 16, flexWrap: "wrap" }}>
+              <div>
+                <div className="results-score" style={{ fontSize: 64, fontWeight: 900, lineHeight: 1, color: COLORS.accent }}>{total}%</div>
+                <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 2, textTransform: "uppercase", color: COLORS.white, opacity: 0.6, marginTop: 4 }}>Puntuación global</div>
+              </div>
+              <div style={{ background: COLORS.accent, borderRadius: 4, padding: "8px 20px", marginBottom: 4 }}>
+                <span style={{ fontWeight: 800, fontSize: 13, letterSpacing: 1, textTransform: "uppercase" }}>{level.label}</span>
               </div>
             </div>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
+          <div className="grid-2">
             {scores.map((s, i) => {
               const lvl = getLevel(s.score);
               return (
-                <div key={s.title} style={{ background: COLORS.white, borderRadius: 4, padding: 20, border: "1px solid " + COLORS.lightGray }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+                <div key={s.title} className="results-body" style={{ background: COLORS.white, borderRadius: 4, padding: 18, border: "1px solid " + COLORS.lightGray }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
                     <span style={{ fontSize: 13, fontWeight: 700, color: COLORS.black, lineHeight: 1.3, maxWidth: "70%" }}>{s.icon} {s.title}</span>
-                    <span style={{ fontWeight: 900, color: i % 2 === 0 ? COLORS.accent : COLORS.black, fontSize: 22, fontFamily: fontTitle }}>{s.score}%</span>
+                    <span style={{ fontWeight: 900, color: i % 2 === 0 ? COLORS.accent : COLORS.black, fontSize: 20, fontFamily: fontTitle }}>{s.score}%</span>
                   </div>
-                  <div style={{ background: COLORS.bg, borderRadius: 2, height: 6, overflow: "hidden" }}>
-                    <div style={{ width: s.score + "%", height: "100%", background: i % 2 === 0 ? COLORS.accent : COLORS.black, transition: "width 1s ease" }} />
+                  <div style={{ background: COLORS.bg, borderRadius: 2, height: 5, overflow: "hidden" }}>
+                    <div style={{ width: s.score + "%", height: "100%", background: i % 2 === 0 ? COLORS.accent : COLORS.black }} />
                   </div>
-                  <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", color: lvl.color, marginTop: 8, display: "block" }}>{lvl.label}</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", color: lvl.color, marginTop: 6, display: "block" }}>{lvl.label}</span>
                 </div>
               );
             })}
           </div>
 
-          <div style={{ background: COLORS.white, borderRadius: 4, padding: 28, border: "1px solid " + COLORS.lightGray, marginBottom: 20 }}>
+          <div style={{ background: COLORS.white, borderRadius: 4, padding: 24, border: "1px solid " + COLORS.lightGray, marginBottom: 16 }}>
             <span style={{ fontWeight: 800, fontSize: 10, letterSpacing: 3, color: COLORS.accent, textTransform: "uppercase" }}>Áreas prioritarias</span>
-            <h3 style={{ fontFamily: fontTitle, fontSize: 22, margin: "8px 0 20px", color: COLORS.black }}>Dónde enfocar la energía</h3>
+            <h3 style={{ fontFamily: fontTitle, fontSize: 20, margin: "8px 0 16px", color: COLORS.black }}>Dónde enfocar la energía</h3>
             {scores.filter(s => s.score < 70).length === 0
-              ? <p style={{ color: "#059669", fontWeight: 700, fontSize: 15 }}>No se detectaron áreas críticas. ¡Excelente trabajo!</p>
+              ? <p style={{ color: "#059669", fontWeight: 700 }}>✅ No se detectaron áreas críticas. ¡Excelente trabajo!</p>
               : scores.filter(s => s.score < 70).sort((a, b) => a.score - b.score).map(s => (
-                <div key={s.title} style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 10, padding: "14px 16px", background: COLORS.bg, borderRadius: 4, borderLeft: "3px solid " + COLORS.accent }}>
-                  <span style={{ fontSize: 22 }}>{s.icon}</span>
+                <div key={s.title} style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10, padding: "12px 14px", background: COLORS.bg, borderRadius: 4, borderLeft: "3px solid " + COLORS.accent }}>
+                  <span style={{ fontSize: 20 }}>{s.icon}</span>
                   <div>
                     <div style={{ fontWeight: 700, color: COLORS.black, fontSize: 14 }}>{s.title}</div>
                     <div style={{ color: COLORS.accent, fontSize: 12, fontWeight: 600 }}>Requiere atención prioritaria · {s.score}%</div>
@@ -317,12 +428,27 @@ export default function App() {
             }
           </div>
 
-          <div style={{ display: "flex", gap: 12 }}>
+          {/* CTA Athena PR */}
+          <div style={{ background: COLORS.black, borderRadius: 4, padding: 24, marginBottom: 16 }}>
+            <span style={{ fontWeight: 800, fontSize: 10, letterSpacing: 3, color: COLORS.accent, textTransform: "uppercase" }}>¿Necesitás acompañamiento?</span>
+            <h3 style={{ fontFamily: fontTitle, fontSize: 20, margin: "8px 0 12px", color: COLORS.white, lineHeight: 1.3 }}>Desarrollá tu estrategia de comunicación con Athena PR</h3>
+            <p style={{ color: "#aaa", fontSize: 14, lineHeight: 1.7, marginBottom: 16, fontWeight: 300 }}>
+              Si los resultados muestran áreas de mejora, podemos ayudarte a construir una estrategia de comunicación y relaciones públicas corporativa a medida de tu organización.
+            </p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 16 }}>
+              <a href={"mailto:" + CONSULTORA.email} style={{ background: COLORS.accent, color: COLORS.white, borderRadius: 4, padding: "10px 18px", fontSize: 13, fontWeight: 800, textDecoration: "none", letterSpacing: 0.5 }}>✉ {CONSULTORA.email}</a>
+              <a href={"https://wa.me/5492804415599"} style={{ background: "#25D366", color: COLORS.white, borderRadius: 4, padding: "10px 18px", fontSize: 13, fontWeight: 800, textDecoration: "none", letterSpacing: 0.5 }}>📲 WhatsApp</a>
+              <a href={"https://" + CONSULTORA.web} style={{ background: COLORS.white, color: COLORS.black, borderRadius: 4, padding: "10px 18px", fontSize: 13, fontWeight: 800, textDecoration: "none", letterSpacing: 0.5 }}>🌐 {CONSULTORA.web}</a>
+            </div>
+            <p style={{ color: "#666", fontSize: 12, fontWeight: 300 }}>{CONSULTORA.direccion}</p>
+          </div>
+
+          <div className="nav-btns" style={{ display: "flex", gap: 12 }}>
             <button onClick={() => { setAnswers({}); setCurrentModule(0); setDataSent(false); setStep("intro"); }} style={{ flex: 1, background: COLORS.white, color: COLORS.black, border: "1.5px solid " + COLORS.lightGray, borderRadius: 4, padding: 14, fontSize: 13, fontWeight: 800, fontFamily: fontBody, letterSpacing: 1, textTransform: "uppercase", cursor: "pointer" }}>
               Reiniciar
             </button>
             <button onClick={() => generatePDF(scores, total, level)} disabled={pdfLoading} style={{ flex: 2, background: pdfLoading ? COLORS.lightGray : COLORS.accent, color: pdfLoading ? COLORS.gray : COLORS.white, border: "none", borderRadius: 4, padding: 14, fontSize: 13, fontWeight: 800, fontFamily: fontBody, letterSpacing: 1, textTransform: "uppercase", cursor: pdfLoading ? "not-allowed" : "pointer" }}>
-              {pdfLoading ? "Generando PDF..." : "Descargar PDF"}
+              {pdfLoading ? "Generando PDF..." : "Descargar informe PDF"}
             </button>
           </div>
         </div>
@@ -331,11 +457,11 @@ export default function App() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: COLORS.bg, fontFamily: fontBody, padding: 24 }}>
+    <div style={{ minHeight: "100vh", background: COLORS.bg, fontFamily: fontBody, padding: 16 }}>
       <style>{cssStyle}</style>
       <div style={{ maxWidth: 660, margin: "0 auto" }}>
-        <div style={{ marginBottom: 28 }}>
-          <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ display: "flex", gap: 4, marginBottom: 10 }}>
             {modules.map((m, i) => (
               <div key={m.id} style={{ flex: 1, height: 4, borderRadius: 2, background: i <= currentModule ? (i % 2 === 0 ? COLORS.accent : COLORS.black) : COLORS.lightGray, transition: "background 0.3s" }} />
             ))}
@@ -347,37 +473,39 @@ export default function App() {
         </div>
 
         <div style={{ background: COLORS.white, borderRadius: 4, overflow: "hidden", border: "1px solid " + COLORS.lightGray }}>
-          <div style={{ background: modColor, padding: "28px 32px" }}>
+          <div className="module-header" style={{ background: modColor, padding: "24px 28px" }}>
             <span style={{ fontWeight: 800, fontSize: 10, letterSpacing: 3, color: modColor === COLORS.accent ? "rgba(255,255,255,0.7)" : COLORS.accent, textTransform: "uppercase" }}>Módulo {currentModule + 1}</span>
-            <h2 style={{ fontFamily: fontTitle, color: COLORS.white, margin: "6px 0 0", fontSize: 26, fontWeight: 900 }}>{mod.title}</h2>
+            <h2 style={{ fontFamily: fontTitle, color: COLORS.white, margin: "6px 0 0", fontSize: 22, fontWeight: 900 }}>{mod.title}</h2>
           </div>
 
-          <div style={{ padding: "32px 32px 28px" }}>
+          <div className="module-body" style={{ padding: "28px 28px 24px" }}>
             {mod.questions.map((q, qi) => (
-              <div key={q.id} style={{ marginBottom: 32, paddingBottom: 32, borderBottom: qi < mod.questions.length - 1 ? "1px solid " + COLORS.bg : "none" }}>
+              <div key={q.id} style={{ marginBottom: 28, paddingBottom: 28, borderBottom: qi < mod.questions.length - 1 ? "1px solid " + COLORS.bg : "none" }}>
                 <p style={{ fontWeight: 600, color: COLORS.black, marginBottom: 14, lineHeight: 1.6, fontSize: 15 }}>
                   <span style={{ color: modColor, fontWeight: 800 }}>{qi + 1}. </span>{q.text}
                 </p>
                 {q.type === "scale" && (
                   <>
-                    <div style={{ display: "flex", gap: 8 }}>
+                    <div className="scale-row" style={{ display: "flex", gap: 8 }}>
                       {[1,2,3,4,5].map(v => (
-                        <button key={v} onClick={() => setScale(q.id, v)} style={{ flex: 1, padding: "12px 0", borderRadius: 4, border: "2px solid " + (answers[q.id] === v ? modColor : COLORS.lightGray), background: answers[q.id] === v ? modColor : COLORS.white, color: answers[q.id] === v ? COLORS.white : COLORS.gray, fontWeight: 800, fontSize: 16, fontFamily: fontBody, cursor: "pointer", transition: "all 0.15s" }}>
+                        <button key={v} className="btn-scale" onClick={() => setScale(q.id, v)}
+                          style={{ flex: 1, padding: "14px 0", borderRadius: 4, border: "2px solid " + (answers[q.id] === v ? modColor : COLORS.lightGray), background: answers[q.id] === v ? modColor : COLORS.white, color: answers[q.id] === v ? COLORS.white : COLORS.gray, fontWeight: 800, fontSize: 18, fontFamily: fontBody, cursor: "pointer" }}>
                           {v}
                         </button>
                       ))}
                     </div>
                     <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
                       <span style={{ fontSize: 11, color: COLORS.gray, fontWeight: 300 }}>1 — {scaleLabels[0]}</span>
-                      <span style={{ fontSize: 11, color: COLORS.gray, fontWeight: 300 }}>5 — {scaleLabels[4]}</span>
+                      <span style={{ fontSize: 11, color: COLORS.gray, fontWeight: 300 }}>5 — {scaleLabels[1]}</span>
                     </div>
                   </>
                 )}
                 {q.type === "choice" && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                     {q.options.map(opt => (
-                      <button key={opt} onClick={() => setChoice(q.id, opt)} style={{ textAlign: "left", padding: "13px 16px", borderRadius: 4, border: "2px solid " + (answers[q.id] === opt ? modColor : COLORS.lightGray), background: answers[q.id] === opt ? (modColor === COLORS.accent ? "#fff0f2" : "#f0f0f0") : COLORS.white, color: answers[q.id] === opt ? modColor : COLORS.gray, fontWeight: answers[q.id] === opt ? 700 : 400, cursor: "pointer", fontSize: 14, fontFamily: fontBody }}>
-                        <span style={{ marginRight: 8, fontSize: 12 }}>{answers[q.id] === opt ? "●" : "○"}</span>{opt}
+                      <button key={opt} onClick={() => setChoice(q.id, opt)}
+                        style={{ textAlign: "left", padding: "14px 16px", borderRadius: 4, border: "2px solid " + (answers[q.id] === opt ? modColor : COLORS.lightGray), background: answers[q.id] === opt ? (modColor === COLORS.accent ? "#fff0f2" : "#f0f0f0") : COLORS.white, color: answers[q.id] === opt ? modColor : COLORS.gray, fontWeight: answers[q.id] === opt ? 700 : 400, cursor: "pointer", fontSize: 15, fontFamily: fontBody }}>
+                        <span style={{ marginRight: 8 }}>{answers[q.id] === opt ? "●" : "○"}</span>{opt}
                       </button>
                     ))}
                   </div>
@@ -387,26 +515,27 @@ export default function App() {
                     {q.options.map(opt => {
                       const sel = (answers[q.id] || []).includes(opt);
                       return (
-                        <button key={opt} onClick={() => toggleMulti(q.id, opt)} style={{ padding: "9px 16px", borderRadius: 4, border: "2px solid " + (sel ? modColor : COLORS.lightGray), background: sel ? modColor : COLORS.white, color: sel ? COLORS.white : COLORS.gray, fontWeight: sel ? 700 : 400, cursor: "pointer", fontSize: 13, fontFamily: fontBody }}>
+                        <button key={opt} onClick={() => toggleMulti(q.id, opt)}
+                          style={{ padding: "10px 16px", borderRadius: 4, border: "2px solid " + (sel ? modColor : COLORS.lightGray), background: sel ? modColor : COLORS.white, color: sel ? COLORS.white : COLORS.gray, fontWeight: sel ? 700 : 400, cursor: "pointer", fontSize: 14, fontFamily: fontBody }}>
                           {sel ? "✓ " : ""}{opt}
                         </button>
                       );
                     })}
-                    <p style={{ width: "100%", fontSize: 11, color: COLORS.gray, fontWeight: 300, marginTop: 4 }}>Podés seleccionar más de una opción</p>
+                    <p style={{ width: "100%", fontSize: 12, color: COLORS.gray, fontWeight: 300, marginTop: 4 }}>Podés seleccionar más de una opción</p>
                   </div>
                 )}
               </div>
             ))}
-            <div style={{ display: "flex", gap: 10 }}>
+            <div className="nav-btns" style={{ display: "flex", gap: 10 }}>
               {currentModule > 0 && (
-                <button onClick={() => setCurrentModule(m => m - 1)} style={{ flex: 1, background: COLORS.white, color: COLORS.black, border: "1.5px solid " + COLORS.lightGray, borderRadius: 4, padding: 14, fontSize: 13, fontWeight: 800, fontFamily: fontBody, letterSpacing: 1, textTransform: "uppercase", cursor: "pointer" }}>
-                  Anterior
+                <button onClick={() => setCurrentModule(m => m - 1)}
+                  style={{ flex: 1, background: COLORS.white, color: COLORS.black, border: "1.5px solid " + COLORS.lightGray, borderRadius: 4, padding: 16, fontSize: 14, fontWeight: 800, fontFamily: fontBody, letterSpacing: 1, textTransform: "uppercase", cursor: "pointer" }}>
+                  ← Anterior
                 </button>
               )}
-              <button
-                onClick={() => currentModule < modules.length - 1 ? setCurrentModule(m => m + 1) : setStep("results")}
+              <button onClick={() => currentModule < modules.length - 1 ? setCurrentModule(m => m + 1) : setStep("results")}
                 disabled={!allAnswered}
-                style={{ flex: 2, background: allAnswered ? modColor : COLORS.lightGray, color: allAnswered ? COLORS.white : COLORS.gray, border: "none", borderRadius: 4, padding: 14, fontSize: 13, fontWeight: 800, fontFamily: fontBody, letterSpacing: 1, textTransform: "uppercase", cursor: allAnswered ? "pointer" : "not-allowed" }}>
+                style={{ flex: 2, background: allAnswered ? modColor : COLORS.lightGray, color: allAnswered ? COLORS.white : COLORS.gray, border: "none", borderRadius: 4, padding: 16, fontSize: 14, fontWeight: 800, fontFamily: fontBody, letterSpacing: 1, textTransform: "uppercase", cursor: allAnswered ? "pointer" : "not-allowed" }}>
                 {currentModule < modules.length - 1 ? "Siguiente módulo →" : "Ver diagnóstico →"}
               </button>
             </div>
